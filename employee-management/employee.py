@@ -1,124 +1,87 @@
-import mysql.connector
-from mysql.connector import Error
+from flask import Flask, request, jsonify
+from flask_mysqldb import MySQL
 
+employee = Flask(__name__)
+
+
+employee.config['MYSQL_HOST'] = 'localhost'
+employee.config['MYSQL_USER'] = 'root'  
+employee.config['MYSQL_PASSWORD'] = ''  
+employee.config['MYSQL_DB'] = 'employee_db'
+
+mysql = MySQL(employee)
+
+@employee.route('/employees', methods=['GET'])
+def get_employees():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM employees")
+    employees = cur.fetchall()
+    cur.close()
+    
+    emp_list = []
+    for emp in employees:
+        emp_list.append({
+            "id": emp[0],
+            "full_name": emp[1],
+            "date_of_birth": emp[2],
+            "address": emp[3],
+            "contact_no": emp[4],
+            "emergency_contact_no": emp[5]
+        })
+    
+    return jsonify(emp_list)
+
+@employee.route('/employees/<int:id>', methods=['GET'])
+def get_employee(id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM employees WHERE id = %s", (id,))
+    emp = cur.fetchone()
+    cur.close()
+
+    if emp:
+        return jsonify({
+            "id": emp[0],
+            "full_name": emp[1],
+            "date_of_birth": emp[2],
+            "address": emp[3],
+            "contact_no": emp[4],
+            "emergency_contact_no": emp[5]
+        })
+    return jsonify({"message": "Employee not found"}), 404
+
+@employee.route('/employees', methods=['POST'])
 def add_employee():
-    name = input("Enter full name: ")
-    birth = input("Enter date of birth (YYYY-MM-DD): ")
-    add = input("Enter address: ")
-    contact = input("Enter contact no: ")
-    emergency = input("Enter emergency contact no: ")
+    data = request.json
+    cur = mysql.connection.cursor()
+    cur.execute("""
+        INSERT INTO employees (full_name, date_of_birth, address, contact_no, emergency_contact_no) 
+        VALUES (%s, %s, %s, %s, %s)
+    """, (data['full_name'], data['date_of_birth'], data['address'], data['contact_no'], data['emergency_contact_no']))
     
-    try:
-        con = mysql.connector.connect(host='localhost', database='employee', user='root', password='')
-        cur = con.cursor()
-        
-        query = "INSERT INTO employee_info (full_name, date_of_birth, address, contact_no, emergency_con) VALUES (%s, %s, %s, %s, %s)"
-        cur.execute(query, (name, birth, add, contact, emergency))
-        
-        con.commit()
-        print("Data inserted successfully!")
-    
-    except Error as error:
-        print(f"Insert data failed: {error}")
-    
-    finally:
-        if con.is_connected():
-            cur.close()
-            con.close()
-            print("MySQL Connection is now CLOSED.")
+    mysql.connection.commit()
+    cur.close()
+    return jsonify({"message": "Employee added successfully!"}), 201
 
-def delete_employee():
-    emp_id = input("Enter employee ID to delete: ")
+@employee.route('/employees/<int:id>', methods=['PUT'])
+def update_employee(id):
+    data = request.json
+    cur = mysql.connection.cursor()
+    cur.execute("""
+        UPDATE employees SET full_name=%s, date_of_birth=%s, address=%s, contact_no=%s, emergency_contact_no=%s 
+        WHERE id=%s
+    """, (data['full_name'], data['date_of_birth'], data['address'], data['contact_no'], data['emergency_contact_no'], id))
     
-    try:
-        con = mysql.connector.connect(host='localhost', database='employee', user='root', password='')
-        cur = con.cursor()
-        
-        query = "DELETE FROM employee_info WHERE emp_id = %s"
-        cur.execute(query, (emp_id,))
-        
-        if cur.rowcount > 0:
-            con.commit()
-            print("Employee deleted successfully!")
-        else:
-            print("No employee found with the given ID.")
-    
-    except Error as error:
-        print(f"Delete operation failed: {error}")
-    
-    finally:
-        if con.is_connected():
-            cur.close()
-            con.close()
-            print("MySQL Connection is now CLOSED.")
+    mysql.connection.commit()
+    cur.close()
+    return jsonify({"message": "Employee updated successfully!"})
 
-def update_employee():
-    emp_id = input("Enter employee ID to update: ")
-    column = input("Enter column to update (full_name, date_of_birth, address, contact_no, emergency_con): ")
-    new_value = input("Enter new value: ")
-    
-    try:
-        con = mysql.connector.connect(host='localhost', database='employee', user='root', password='')
-        cur = con.cursor()
-        
-        query = f"UPDATE employee_info SET {column} = %s WHERE emp_id = %s"
-        cur.execute(query, (new_value, emp_id))
-        
-        if cur.rowcount > 0:
-            con.commit()
-            print("Employee updated successfully!")
-        else:
-            print("No employee found with the given ID.")
-    
-    except Error as error:
-        print(f"Update operation failed: {error}")
-    
-    finally:
-        if con.is_connected():
-            cur.close()
-            con.close()
-            print("MySQL Connection is now CLOSED.")
+@employee.route('/employees/<int:id>', methods=['DELETE'])
+def delete_employee(id):
+    cur = mysql.connection.cursor()
+    cur.execute("DELETE FROM employees WHERE id=%s", (id,))
+    mysql.connection.commit()
+    cur.close()
+    return jsonify({"message": "Employee deleted successfully!"})
 
-def search_employee():
-    emp_id = input("Enter employee ID to search: ")
-    
-    try:
-        con = mysql.connector.connect(host='localhost', database='employee', user='root', password='')
-        cur = con.cursor()
-        
-        query = "SELECT * FROM employee_info WHERE emp_id = %s"
-        cur.execute(query, (emp_id,))
-        result = cur.fetchone()
-        
-        if result:
-            print("Employee Details:")
-            print(result)
-        else:
-            print("No employee found with the given ID.")
-    
-    except Error as error:
-        print(f"Search operation failed: {error}")
-    
-    finally:
-        if con.is_connected():
-            cur.close()
-            con.close()
-            print("MySQL Connection is now CLOSED.")
-
-
-while True:
-    print("\n1. Add Employee\n2. Delete Employee\n3. Update Employee\n4. Search Employee\n5. Exit")
-    choice = input("Enter the number of your choice: ")
-    
-    if choice == '1':
-        add_employee()
-    elif choice == '2':
-        delete_employee()
-    elif choice == '3':
-        update_employee()
-    elif choice == '4':
-        search_employee()
-    elif choice == '5':
-        break
-    else:
-        print("Invalid choice! Please enter 1, 2, 3, 4, or 5.")
+if __name__ == '__main__':
+    employee.run(debug=True)
